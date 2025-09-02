@@ -1,0 +1,589 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "description": "Dataviz by David Bacci: https://www.linkedin.com/in/davbacci/",
+  "title": {
+    "text": "DatabaseA--ContextType Type_a",
+    "fontSize":14,
+    "fontWeight":"bold",
+    "anchor":"middle",
+    "dy":-20
+  },
+  "width": 400,
+  "height": 550,
+  "padding": {"left": 0, "right": 0, "top": 0, "bottom": 0},
+  "autosize": "pad",
+  "background": "#f4f7ff",
+  "signals": [
+    {
+      "name": "selectedContext",
+      "value": "Type_a"
+    },
+    {"name": "xrange", "update": "[0, width]"},
+    {"name": "yrange", "update": "[height, 0]"},
+    {"name": "xext", "update": "[0, width]"},
+    {"name": "yext", "update": "[height, 0]"},
+    {
+      "name": "down",
+      "value": null,
+      "on": [
+        {"events": "mouseup,touchend", "update": "null"},
+        {"events": "mousedown, touchstart", "update": "xy()"},
+        {"events": "symbol:mousedown, symbol:touchstart", "update": "null"}
+      ]
+    },
+    {
+      "name": "xcur",
+      "value": null,
+      "on": [{"events": "mousedown, touchstart, touchend", "update": "xdom"}]
+    },
+    {
+      "name": "ycur",
+      "value": null,
+      "on": [{"events": "mousedown, touchstart, touchend", "update": "ydom"}]
+    },
+    {
+      "name": "delta",
+      "value": [0, 0],
+      "on": [
+        {
+          "events": [
+            {
+              "source": "window",
+              "type": "mousemove",
+              "consume": true,
+              "between": [
+                {"type": "mousedown"},
+                {"source": "window", "type": "mouseup"}
+              ]
+            },
+            {
+              "type": "touchmove",
+              "consume": true,
+              "filter": "event.touches.length === 1"
+            }
+          ],
+          "update": "down ? [down[0]-x(), y()-down[1]] : [0,0]"
+        }
+      ]
+    },
+    {
+      "name": "anchor",
+      "value": [0, 0],
+      "on": [
+        {
+          "events": "wheel",
+          "update": "[invert('xscale', x()), invert('yscale', y())]"
+        },
+        {
+          "events": {
+            "type": "touchstart",
+            "filter": "event.touches.length===2"
+          },
+          "update": "[(xdom[0] + xdom[1]) / 2, (ydom[0] + ydom[1]) / 2]"
+        }
+      ]
+    },
+   
+    {
+      "name": "xdom",
+      "update": "xext",
+      "on": [
+        {
+          "events": {"signal": "delta"},
+          "update": "[xcur[0] + span(xcur) * delta[0] / width, xcur[1] + span(xcur) * delta[0] / width]"
+        },
+       
+        {"events": [{"source": "view", "type": "dblclick"}], "update": "xrange"}
+      ]
+    },
+    {
+      "name": "ydom",
+      "update": "yext",
+      "on": [
+        {
+          "events": {"signal": "delta"},
+          "update": "[ycur[0] + span(ycur) * delta[1] / height, ycur[1] + span(ycur) * delta[1] / height]"
+        },
+       
+        {"events": [{"source": "view", "type": "dblclick"}], "update": "yrange"}
+      ]
+    },
+    {"name": "size", "update": "clamp(20 / span(xdom), 1, 1000)"},
+    {
+      "name": "cx",
+      "update": "width / 2",
+      "on": [
+        {
+          "events": "[symbol:mousedown, window:mouseup] > window:mousemove",
+          "update": " cx==width/2?cx+0.001:width/2"
+        }
+      ]
+    },
+    {"name": "cy", "update": "height / 2"},
+    {
+      "name": "nodeRadiusKey",
+      "description": "q=increase size, a=decrease size",
+      "value": 8,
+      "on": [
+        {
+          "events": "window:keypress",
+          "update": "event.key=='a'&&nodeRadiusKey>1?nodeRadiusKey-1:event.key=='q'?nodeRadiusKey+1:nodeRadiusKey"
+        }
+      ]
+    },
+    {
+      "name": "nodeRadius",
+      "value": 8,
+      "bind": {"input": "range", "min": 1, "max": 50, "step": 1},
+      "on": [{"events": {"signal": "nodeRadiusKey"}, "update": "nodeRadiusKey"}]
+    },
+    {
+      "name": "nodeCharge",
+      "value": -30,
+      "bind": {"input": "range", "min": -100, "max": 10, "step": 1}
+    },
+    {
+      "name": "linkDistance",
+      "value": 100,
+      "bind": {"input": "range", "min": 500, "max": 500//, "step": 1
+      }
+    },
+    {
+      "description": "State variable for active node fix status.",
+      "name": "fix",
+      "value": false,
+      "on": [
+        {
+          "events": "symbol:mouseout[!event.buttons], window:mouseup",
+          "update": "false"
+        },
+        {
+          "events": "symbol:mouseover",
+          "update": "fix || true",
+          "force": true
+        },
+        {
+          "events": "[symbol:mousedown, window:mouseup] > window:mousemove!",
+          "update": "xy()",
+          "force": true
+        }
+      ]
+    },
+    {
+      "description": "Graph node most recently interacted with.",
+      "name": "node",
+      "value": null,
+      "on": [
+        {
+          "events": "symbol:mouseover",
+          "update": "fix === true ? datum.index : node"
+        }
+      ]
+    },
+    {
+      "name": "nodeHover",
+      "value": {"id": null, "connections": []},
+      "on": [
+        {
+          "events": "symbol:mouseover",
+          "update": "{'id':datum.index, 'connections':split(datum.sources+','+datum.targets,',')}"
+        },
+        {"events": "symbol:mouseout", "update": "{'id':null, 'connections':[]}"}
+      ]
+    },
+    {
+      "description": "Flag to restart Force simulation upon data changes.",
+      "name": "restart",
+      "value": false,
+      "on": [{"events": {"signal": "selectedContext"}, "update": "true"}]
+    }
+  ],
+  "data": [
+    {"name": "dataset"},
+    {
+      "name": "link-data-raw",
+      "source": "dataset","transform": [
+      {
+        "type": "formula",
+        "as": "source",
+        "expr": "datum.From"
+      },
+      {
+        "type": "formula",
+        "as": "target",
+        "expr": "datum.To"
+      },
+      {
+        "type": "formula",
+        "as": "value",
+        "expr": "datum.Count"
+      },
+      {
+        "type": "formula",
+        "as": "context",
+        "expr": "datum.SYSTEM_CODE"
+      },
+      {
+        "type": "formula",
+        "as": "stp_rate",
+        "expr": "datum.STP_rate"
+      },
+      {
+      "type": "filter",
+      "expr": "datum.context == selectedContext"
+    },
+ 
+    {
+      "type": "filter",
+      "expr": "datum.context == selectedContext"
+    }
+    ]},
+    {"name": "link-data", "source": "link-data-raw"},
+    {
+      "name": "linkContexts",
+      "source": "link-data",
+      "transform": [
+        {
+          "type": "aggregate",
+          "groupby": ["context"]
+        }
+      ]
+    },
+    {
+      "name": "source-connections",
+      "source": "link-data-raw",
+      "transform": [
+        {
+          "type": "aggregate",
+          "groupby": ["source"],
+          "ops": ["values"],
+          "fields": ["target"],
+          "as": ["connections"]
+        },
+        {
+          "type": "formula",
+          "as": "targets",
+          "expr": "pluck(datum.connections, 'target')"
+        }
+      ]
+    },
+    {
+      "name": "target-connections",
+      "source": "link-data-raw",
+      "transform": [
+        {
+          "type": "aggregate",
+          "groupby": ["target"],
+          "ops": ["values"],
+          "fields": ["source"],
+          "as": ["connections"]
+        },
+        {
+          "type": "formula",
+          "as": "sources",
+          "expr": "pluck(datum.connections, 'source')"
+        }
+      ]
+    },
+   
+    {
+      "name": "node-data",
+      "values": {
+    "nodes": [
+//{"name": "DatabaseA.Table1", "group": 1, "x": 120, "y": 150},
+//{"name": "DatabaseA.Table2", "group": 2, "x": 250, "y": 30},
+//{"name": "DatabaseA.Table3", "group": 3, "x": 0, "y": 0},
+{"name": "DatabaseA.Table4", "group": 4, "x": 300, "y": 150},
+//{"name": "DatabaseA.Table5", "group": 5, "x": 240, "y": 30},
+//{"name": "DatabaseA.Table6", "group": 6, "x": 90, "y": 20},
+{"name": "DatabaseA.Table7", "group": 7, "x": 50, "y": 180},
+//{"name": "DatabaseA.Table8", "group": 8, "x": 70, "y": 100},
+{"name": "DatabaseA.Table9", "group": 9, "x": 50, "y": 150},
+{"name": "DatabaseA.Table10", "group": 10, "x": 120, "y": 220},
+//{"name": "DatabaseA.Table11", "group": 11, "x": 10, "y": 10},
+{"name": "DatabaseA.Table12", "group": 12, "x": 200, "y": 180},
+//{"name": "DatabaseA.Table13", "group": 13, "x": 220, "y": 20},
+{"name": "DatabaseA.Table14", "group": 14, "x": 30, "y": 190}
+//{"name": "DatabaseA.Table15", "group": 15, "x": 30, "y": 50}
+    ]
+},
+ 
+      "format": {"type": "json", "property": "nodes"},
+      "transform": [
+        {
+          "type": "lookup",
+          "from": "source-connections",
+          "key": "source",
+          "fields": ["name"],
+          "values": ["targets"],
+          "as": ["targets"],
+          "default": [""]
+        },
+        {
+          "type": "lookup",
+          "from": "target-connections",
+          "key": "target",
+          "fields": ["name"],
+          "values": ["sources"],
+          "as": ["sources"],
+          "default": [""]
+        },
+        {
+          "type": "formula",
+          "as": "connectionCount",
+          "expr": "length(datum.sources) + length(datum.targets)"
+        },
+        {
+          "type": "force",
+          "iterations": 300,
+          "restart": {"signal": "restart"},
+          "signal": "force",
+          "forces": [
+            {"force": "center", "x": {"signal": "cx"}, "y": {"signal": "cy"}},
+            {
+              "force": "collide",
+              "radius": {"signal": "sqrt(4 * nodeRadius * nodeRadius)"},
+              "iterations": 1,
+              "strength": 0.7
+            },
+            {"force": "nbody", "strength": {"signal": "nodeCharge"}},
+            {
+              "force": "link",
+              "links": "link-data-raw",
+              "distance": {"signal": "linkDistance"},
+              "strength": 0.07,
+              "id": "name"
+            }
+          ]
+        },
+        {
+          "type": "formula",
+          "as": "fx",
+          "expr": "fix[0]!=null && node==datum.index ?invert('xscale',fix[0]):null"
+        },
+        {
+          "type": "formula",
+          "as": "fy",
+          "expr": "fix[1]!=null && node==datum.index ?invert('yscale',fix[1]):null"
+        }
+ 
+      ]
+    }
+  ],
+  "scales": [
+    {
+      "name": "color",
+      "type": "ordinal",
+      "domain": {"data": "node-data", "field": "group"},
+      "range": [
+ 
+// "#4E79A7",
+// "#F28E2B",
+// "#E15759",
+"#76B7B2",
+// "#59A14F",
+// "#EDC949",
+"#AF7AA1",
+// "#FF9DA7",
+"#9C755F",
+"#BAB0AC",
+// "#88C0D0",
+"#D08770",
+// "#EBCB8B",
+"#A3BE8C"
+// "#BF616A"
+ 
+ 
+      ]
+    },
+    {
+  "name": "linkWidth",
+  "type": "linear",
+  "domain": {
+    "data": "link-data",
+    "field": "value"
+  },
+  "range": [20, 300],  // Adjust these values for desired min/max width
+  "zero": false
+},
+    {
+  "name": "nodeSize",
+  "type": "linear",
+  "domain": {
+    "data": "node-data",
+    "field": "connectionCount"
+  },
+  "range": [10,500],  // Adjust this range for desired node sizes
+  "zero": true,
+  "nice": true
+},
+    {
+      "name": "xscale",
+      "zero": false,
+      "domain": {"signal": "xdom"},
+      "range": {"signal": "xrange"}
+    },
+    {
+      "name": "yscale",
+      "zero": false,
+      "domain": {"signal": "ydom"},
+      "range": {"signal": "yrange"}
+    }
+  ],
+  "marks": [
+     
+    {
+    "type": "symbol",
+    "name": "nodes",
+    "zindex": 1,
+    "from": {"data": "node-data"},
+    "encode": {
+      "update": {
+        "opacity": {"value": 1},
+        "fill": {
+          "signal": "nodeHover.id===datum.index || indexof(nodeHover.connections, datum.name)>-1 ? scale('color', datum.group) : merge(hsl(scale('color', datum.group)), {l:0.64})"
+          },
+        "stroke": {
+            "signal": "nodeHover.id===datum.index || indexof(nodeHover.connections, datum.name)>-1 ? scale('color', datum.group) : merge(hsl(scale('color', datum.group)), {l:0.84})"
+          },
+        "strokeWidth": {"value": 1},
+        "strokeOpacity": {"value": 1},
+        "size":
+        {
+            "signal": "scale('nodeSize', pow(datum.connectionCount, 1.5))"  // Square the connectionCount for node size
+          },
+        // {
+        //   "signal": "scale('nodeSize', datum.connectionCount)"
+        // },  // Using the scale here
+          "cursor": {"value": "pointer"},
+        "x": {
+          "signal": "fix[0]!=null && node===datum.index ? fix[0] : scale('xscale', datum.x)"
+        },
+        "y": {
+          "signal": "fix[1]!=null && node===datum.index ? fix[1] : scale('yscale', datum.y)"
+        }
+    },
+    "hover": {
+      "tooltip": {"signal": "datum.name"}
+    }
+  }
+},
+    {
+      "type": "path",
+      "name": "links",
+      "from": {"data": "link-data"},
+      "encode": {
+        "update": {
+          "stroke": {
+            "signal": "datum.context ==selectedContext ? '#929399' : 'transparent'"
+          },
+          "strokeWidth": {
+            "signal": "datum.context == selectedContext ? 0.5 : 0"
+          }
+        }
+      },
+      "transform": [
+        {
+          "type": "linkpath",
+          "require": {"signal": "force"},
+          "shape": "line",
+          "sourceX": {"expr": "scale('xscale', datum.datum.source.x)"},
+          "sourceY": {"expr": "scale('yscale', datum.datum.source.y)"},
+          "targetX": {"expr": "scale('xscale', datum.datum.target.x)"},
+          "targetY": {"expr": "scale('yscale', datum.datum.target.y)"}
+        },
+        {
+          "type": "formula",
+          "expr": "atan2(datum.datum.target.y - datum.datum.source.y,datum.datum.source.x - datum.datum.target.x)",
+          "as": "angle1"
+        },
+        {
+          "type": "formula",
+          "expr": "(datum.angle1>=0?datum.angle1:(2*PI + datum.angle1)) * (360 / (2*PI))",
+          "as": "angle2"
+        },
+        {
+          "type": "formula",
+          "expr": "(360-datum.angle2)*(PI/180)",
+          "as": "angle3"
+        },
+        {
+          "type": "formula",
+          "expr": "(cos(datum.angle3)*(nodeRadius+30))+(scale('xscale',datum.datum.target.x))",
+          "as": "arrowX"
+        },
+        {
+          "type": "formula",
+          "expr": "(sin(datum.angle3)*(nodeRadius+30))+(scale('yscale',datum.datum.target.y))",
+          "as": "arrowY"
+        }
+      ]
+    },
+    {
+      "type": "symbol",
+      "name": "arrows",
+      "zindex": 1,
+      "from": {"data": "links"},
+      "encode": {
+        "update": {
+          "shape": {"value": "triangle"},
+          "angle": {"signal": "-datum.angle2-90"},
+          "x": {"signal": "datum.arrowX"},
+          "y": {"signal": "datum.arrowY"},
+          "text": {"signal": "'▲'"},
+          "fill": {
+            "signal": "datum.datum.source.index!=nodeHover.id && datum.datum.target.index!=nodeHover.id ? '#929399':merge(hsl(scale('color', datum.datum.source.group)), {l:0.64})"
+          },
+          "size": {"signal": "scale('linkWidth', datum.datum.value)"}
+        }
+      }
+    },
+    {
+      "type": "text",
+      "name": "linkValues",
+      "zindex": 2,
+      "from": {"data": "links"},
+      "encode": {
+        "update": {
+          "text": {"signal": " format(datum.datum.stp_rate * 100, '.2f') + '%'"},
+          "x": {
+            "signal": "(datum.arrowX + (cos(datum.angle3) * 20)+ (datum.arrowXOffset || 0))"  // Positioning slightly right of the arrowhead
+          },
+          "y": {
+            "signal": "(datum.arrowY + (sin(datum.angle3) * -10)+ (datum.arrowYOffset || 0))"  // Positioning slightly below the arrowhead
+          },
+          "fill": {
+            "signal": "datum.datum.stp_rate == 1 ? 'transparent' : '#000000'"
+            //"value": "#595959"
+            },
+          "fontSize": {"value": 10},
+          "align": {"value": "center"},
+          "baseline": {"value": "middle"}
+        }
+      }
+    },
+    {
+      "type": "text",
+      "name": "labels",
+      "from": {"data": "nodes"},
+      "zindex": 2,
+      "interactive": false,
+      "enter": {},
+      "encode": {
+        "update": {
+          "fill": {"signal": "'white'"},
+          "y": {"field": "y"},
+          "x": {"field": "x"},
+          "text": {"field": "datum.name"},
+          "align": {"value": "center"},
+          "fontSize": {"value": 10},
+          "baseline": {"value": "middle"},
+          "limit": {
+            "signal": "clamp(sqrt(4 * nodeRadius * nodeRadius)-7,1,1000)"
+          },
+          "ellipsis": {"value": " "}
+        }
+      }
+    }
+  ]
+}
